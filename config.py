@@ -5,3 +5,5 @@ limited_number_of_lines_count = 10000
 print_count = 500000
 
 bulk_insert_length = 100000
+
+ordered_dict_max_length = 1000

@@ -4,7 +4,8 @@ import re
 class LineParser:
     @staticmethod
     def get_file_path(line):
-        reg = re.search('([a-f0-9]{40}[^\"]*)', line)
+        #reg = re.search('([a-f0-9]{40}[^\"]*)', line)
+        reg = re.search('(\"([^\"]*)\")', line)
         if not reg:
             print("Can`t find hash in line {}".format(line))
             return None
