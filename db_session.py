@@ -3,35 +3,30 @@ from sqlalchemy.orm import sessionmaker
 from db_schema import Base
 
 class DatabaseEngine:
-    database_engine = None
+    def __init__(self):
+        self.database_engine = None
 
-    @staticmethod
-    def get_engine():
+    def get_engine(self):
         echo = False
-        if DatabaseEngine.database_engine is None:
-            #DatabaseEngine.database_engine = create_engine('mysql+cymysql://root@localhost/', echo=echo)
-            DatabaseEngine.database_engine = create_engine('mysql://root:root@localhost/', echo=echo)
-        return DatabaseEngine.database_engine
+        if self.database_engine is None:
+            self.database_engine = create_engine('mysql://root@localhost/', echo=echo)
+            #DatabaseEngine.database_engine = create_engine('mysql://root:root@localhost/', echo=echo)
+        return self.database_engine
 
-    @staticmethod
-    def recreate_database():
-        DatabaseEngine.get_engine().execute("DROP DATABASE scan_logs")
-        DatabaseEngine.get_engine().execute("CREATE DATABASE IF NOT EXISTS scan_logs")
+    def recreate_database(self):
+        self.get_engine().execute("DROP DATABASE scan_logs")
+        self.get_engine().execute("CREATE DATABASE IF NOT EXISTS scan_logs")
 
-    @staticmethod
-    def initialize_engine():
-        DatabaseEngine.get_engine().execute("USE scan_logs")
+    def initialize_engine(self):
+        self.get_engine().execute("USE scan_logs")
 
-    @staticmethod
-    def create_tables():
-        DatabaseEngine.initialize_engine()
-        Base.metadata.create_all(DatabaseEngine.get_engine())
+    def create_tables(self):
+        self.initialize_engine()
+        Base.metadata.create_all(self.get_engine())
 
-    @staticmethod
-    def get_session():
-        DatabaseEngine.initialize_engine()
-        return sessionmaker(bind=DatabaseEngine.get_engine())()
+    def get_session(self):
+        self.initialize_engine()
+        return sessionmaker(bind=self.get_engine())()
 
-    @staticmethod
-    def close_session(session):
+    def close_session(self, session):
         session.close()

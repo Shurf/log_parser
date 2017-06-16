@@ -83,6 +83,9 @@ class DiagnoseReaderWorkerParam:
 
 
 def diagnose_reader_worker(worker_param: DiagnoseReaderWorkerParam):
+
+    Logger.log("diagnose_reader_worker(): thread %d started" % worker_param.thread_number)
+
     collection = DiagnoseCollection()
     reader = ThreadedDiagnoseReader(worker_param.file_collection, worker_param.thread_number, collection)
     reader.run()
@@ -110,13 +113,16 @@ class DiagnoseWriterWorkerParam:
 
 def diagnose_writer_worker(param: DiagnoseWriterWorkerParam):
 
-    session = db_session.DatabaseEngine.get_session()
+    Logger.log("diagnose_writer_worker(): thread %d started" % param.thread_id)
+    engine = db_session.DatabaseEngine()
+    session = engine.get_session()
 
     parameters_array = []
     i = 0
     total_count = 0
     list_length = len(param.diagnoses)
 
+    Logger.log("diagnose_writer_worker(): thread %d beginning to work (%d)" % (param.thread_id, list_length))
     for diagnose_item in param.diagnoses:
         parameters_array.append(
             dict(id=diagnose_item.diagnose_id,
@@ -137,7 +143,7 @@ def diagnose_writer_worker(param: DiagnoseWriterWorkerParam):
         session.commit()
         Logger.log("[Thread %d] inserted %d/%d diagnoses" % (param.thread_id, total_count, list_length))
 
-    db_session.DatabaseEngine.close_session(session)
+    engine.close_session(session)
 
 
 class DiagnoseManager:
@@ -168,6 +174,7 @@ class DiagnoseManager:
             args_collection.append(DiagnoseReaderWorkerParam(file_collection=file_list_chunk, thread_number=i))
             i += 1
 
+        Logger.log("DiagnoseManager.read_diagnoses_from_files(): starting threads")
         results = pool.map(diagnose_reader_worker, args_collection)
 
         Logger.log("DiagnoseManager.read_diagnoses_from_files(): threads completed reading files")
@@ -186,6 +193,8 @@ class DiagnoseManager:
         chunk_size = int(self.diagnose_collection.diagnose_count / self.thread_limit) + \
                      (self.diagnose_collection.diagnose_count % self.thread_limit > 0)
 
+        Logger.log("DiagnoseManager.create_diagnoses_in_database_threaded(): preparing")
+
         for diagnose in self.diagnose_collection.diagnose_collection.keys():
             for subtype in self.diagnose_collection.diagnose_collection[diagnose]:
                 diagnoses_array.append(
@@ -198,10 +207,15 @@ class DiagnoseManager:
                     i = 0
                     thread_id += 1
 
-        args_collection.append(DiagnoseWriterWorkerParam(thread_id=thread_id, diagnoses=diagnoses_array))
+        if len(diagnoses_array) > 0:
+            args_collection.append(DiagnoseWriterWorkerParam(thread_id=thread_id, diagnoses=diagnoses_array))
         pool = Pool(self.thread_limit)
 
+        Logger.log("DiagnoseManager.create_diagnoses_in_database_threaded(): running threads")
+
         pool.map(diagnose_writer_worker, args_collection)
+
+        Logger.log("DiagnoseManager.create_diagnoses_in_database_threaded(): threads finished")
 
 
     def create_diagnoses_in_database(self, session):
@@ -209,11 +223,13 @@ class DiagnoseManager:
         parameters_array = []
         i = 0
         total_count = 0
+        id = 1
         for diagnose in self.diagnose_collection.diagnose_collection.keys():
             for subtype in self.diagnose_collection.diagnose_collection[diagnose]:
-                parameters_array.append(dict(dia_type=diagnose, subtype=subtype))
+                parameters_array.append(dict(id=id, dia_type=diagnose, subtype=subtype))
                 i += 1
                 total_count += 1
+                id += 1
                 if i >= config.bulk_insert_length:
                     session.bulk_insert_mappings(Diagnose, parameters_array)
                     session.commit()

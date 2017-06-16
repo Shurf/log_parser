@@ -154,10 +154,12 @@ if __name__ == '__main__':
     # versions = sys.argv[1:]
     versions = ['7.00.27.02270', '7.00.30.03210']
 
-    db_session.DatabaseEngine.recreate_database()
-    db_session.DatabaseEngine.create_tables()
-    session = db_session.DatabaseEngine.get_session()
+    engine = db_session.DatabaseEngine()
+    engine.recreate_database()
+    engine.create_tables()
+
+    session = engine.get_session()
 
     main(session, versions)
 
-    db_session.DatabaseEngine.close_session(session)
+    engine.close_session(session)
