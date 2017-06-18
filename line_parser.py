@@ -18,3 +18,7 @@ class LineParser:
             print("Can`t find hash in line {}".format(line))
             return None
         return reg.group(1)
+
+    @staticmethod
+    def should_skip_line(line):
+        return "\\virus\\samples\\" not in line

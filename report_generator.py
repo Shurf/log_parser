@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from db_schema import Base, EngineVersion, File, Diagnose
+from db_schema import Base, EngineVersion, LogEntry, Diagnose
 
 
 def main(session):
@@ -12,8 +12,8 @@ def main(session):
         new_engine = old_engine
         old_engine = tmp
 
-    for new_sample_file in session.query(File).filter_by(engine_version=new_engine.id):
-        old_sample_file = session.query(File).filter_by(engine_version=old_engine.id,
+    for new_sample_file in session.query(LogEntry).filter_by(engine_version=new_engine.id):
+        old_sample_file = session.query(LogEntry).filter_by(engine_version=old_engine.id,
                                                           file_path=new_sample_file.file_path).first()
         if old_sample_file:
             if old_sample_file.diagnose != new_sample_file.diagnose:

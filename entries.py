@@ -7,8 +7,9 @@ import config
 import db_session
 from line_parser import LineParser
 from logger import Logger
-from db_schema import File, assotiation_table_file_diagnose
+from db_schema import LogEntry, assotiation_table_file_diagnose
 import convenience
+from files import FileInfo
 
 
 class DatabaseEntry:
@@ -39,16 +40,16 @@ class EntryContainer:
 
 
 class EntryWriterWorkerParam:
-    def __init__(self, file_names, thread_number, diagnoses):
-        self.file_names = file_names
+    def __init__(self, files: typing.List[FileInfo], thread_number, diagnoses):
+        self.files = files
         self.thread_number = thread_number
         self.diagnoses = diagnoses
 
 
 class ThreadedEntryProcessor:
-    def __init__(self, file_names, thread_number, diagnoses):
+    def __init__(self, files: typing.List[FileInfo], thread_number, diagnoses):
 
-        self.file_names = file_names
+        self.files = files
         self.thread_number = thread_number
         self.re_collection = regexps.RegexCollection.get_regex_collection_copy()
         self.entry_container = EntryContainer()
@@ -81,12 +82,12 @@ class ThreadedEntryProcessor:
         #return next((d for d in self.diagnoses if d.dia_type == diagnose_name and d.subtype == diagnose_type)).id
         return self.diagnoses[diagnose_name][diagnose_type]
 
-    def add_entry_to_database_queue(self, entry: DatabaseEntry, file_name):
+    def add_entry_to_database_queue(self, entry: DatabaseEntry, file: FileInfo):
         self.database_queue.append(entry)
         if len(self.database_queue) >= config.bulk_insert_length:
-            self.put_entries_to_database(file_name)
+            self.put_entries_to_database(file)
 
-    def put_entries_to_database(self, file_name):
+    def put_entries_to_database(self, file: FileInfo):
 
         total_count = len(self.database_queue)
 
@@ -95,23 +96,25 @@ class ThreadedEntryProcessor:
 
         for database_entry in self.database_queue:
             #entries_parameters_array.append(dict(id=self.current_line_id, file_path=database_entry.file_path[:config.max_path_length]))
-            entries_parameters_array.append(dict(id=self.current_line_id, file_path=database_entry.file_path))
+            entries_parameters_array.append(dict(id=self.current_line_id,
+                                                 file_path=database_entry.file_path,
+                                                 log_file=file.id))
             for diagnose_id in database_entry.diagnose_id_list:
-                relationships_parameters_array.append(dict(file_id=self.current_line_id, diagnose_id=diagnose_id))
+                relationships_parameters_array.append(dict(entry_id=self.current_line_id, diagnose_id=diagnose_id))
             self.current_line_id += 1
 
         try:
-            self.session.bulk_insert_mappings(File, entries_parameters_array)
+            self.session.bulk_insert_mappings(LogEntry, entries_parameters_array)
             self.session.execute(assotiation_table_file_diagnose.insert().values(relationships_parameters_array))
             self.session.commit()
         except:
             self.session.rollback()
-            Logger.log("[Thread %d] got exception reading file %s" % (self.thread_number, file_name))
+            Logger.log("[Thread %d] got exception reading file %s" % (self.thread_number, file.full_path))
             for entry_parameter in entries_parameters_array:
                 try:
                     #self.session.execute(File.insert().values(entry_parameter))
                     entry_parameter['file_path'] = repr(entry_parameter['file_path'])
-                    self.session.bulk_insert_mappings(File, [entry_parameter])
+                    self.session.bulk_insert_mappings(LogEntry, [entry_parameter])
                     self.session.commit()
                 except:
                     Logger.log("[Thread %d] failed to insert file name %s" % (self.thread_number, entry_parameter['file_path']))
@@ -147,8 +150,8 @@ class ThreadedEntryProcessor:
         if not is_matched:
             print("No match {}".format(line))
 
-    def process_file(self, file_name):
-        with open(file_name, encoding="utf8", errors='replace') as log_file:
+    def process_file(self, file: FileInfo):
+        with open(file.full_path, encoding="utf8", errors=config.error_treatment_method) as log_file:
             count = 0
             # print(count)
             for line in log_file:
@@ -156,32 +159,33 @@ class ThreadedEntryProcessor:
                 if config.only_read_limited_number_of_lines and count == config.limited_number_of_lines_count:
                     break
                 if count % config.print_count == 0:
-                    Logger.log("[Thread %d] Processed %d lines from file %s" % (self.thread_number, count, file_name))
+                    Logger.log("[Thread %d] Processed %d/%d lines from file %s" %
+                               (self.thread_number, count, file.line_count, file.full_path))
 
                 # Skip lines with base load and etc
-                if ("\\virus\\samples\\" not in line):
+                if LineParser.should_skip_line(line):
                     continue
                 try:
                     self.parse_line(line, self.re_collection)
                     while self.entry_container.need_pop_entry():
-                        self.add_entry_to_database_queue(self.entry_container.pop_entry(), file_name)
+                        self.add_entry_to_database_queue(self.entry_container.pop_entry(), file)
                 except IOError:
                     print(count)
                     continue
 
         while self.entry_container.has_elements():
-            self.add_entry_to_database_queue(self.entry_container.pop_entry(), file_name)
+            self.add_entry_to_database_queue(self.entry_container.pop_entry(), file)
 
     def run(self):
 
         self.init_session()
-        current_file_name = None
+        current_file = None
 
-        for file_name in self.file_names:
-            current_file_name = file_name
-            self.process_file(file_name)
+        for file in self.files:
+            current_file = file
+            self.process_file(file)
 
-        self.put_entries_to_database(current_file_name)
+        self.put_entries_to_database(current_file)
         self.close_session()
 
 
@@ -189,12 +193,7 @@ def entry_writer_worker(worker_param: EntryWriterWorkerParam):
 
     Logger.log("entry_writer_worker(): thread %d started" % worker_param.thread_number)
 
-    """own_diagnoses = {}
-    for diagnose_type in worker_param.diagnoses.keys():
-        own_diagnoses[diagnose_type] = {}
-        for diagnose_subtype in worker_param.diagnoses[diagnose_type].keys():
-            own_diagnoses[diagnose_type][diagnose_subtype] = worker_param.diagnoses[diagnose_type][diagnose_subtype]"""
-    processor = ThreadedEntryProcessor(worker_param.file_names, worker_param.thread_number, worker_param.diagnoses)
+    processor = ThreadedEntryProcessor(worker_param.files, worker_param.thread_number, worker_param.diagnoses)
     processor.run()
 
 
@@ -206,7 +205,7 @@ class DiagnoseInfo:
 
 
 class EntryManager:
-    def __init__(self, file_collection: typing.List[str], diagnoses):
+    def __init__(self, file_collection: typing.List[FileInfo], diagnoses):
         self.file_collection = file_collection
         self.diagnoses = diagnoses
         self.thread_limit = convenience.get_cpu_count()
@@ -223,11 +222,11 @@ class EntryManager:
         i = 0
         args_collection = []
         for file_list_chunk in convenience.split_list_into_chunks(self.file_collection, chunk_size):
-            args_collection.append(EntryWriterWorkerParam(file_names=file_list_chunk, thread_number=i, diagnoses=self.diagnoses))
+            args_collection.append(EntryWriterWorkerParam(files=file_list_chunk, thread_number=i, diagnoses=self.diagnoses))
             i += 1
 
         Logger.log("EntryManager.read_entries_from_files(): starting threads")
-        results = pool.map(entry_writer_worker, args_collection)
+        pool.map(entry_writer_worker, args_collection)
         pool.close()
 
         Logger.log("EntryManager.read_entries_from_files(): threads completed reading files")

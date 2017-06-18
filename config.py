@@ -13,5 +13,10 @@ entry_id_multiplier = 100000000
 
 max_path_length = 500
 
+skip_preparations = False
+
 entries_manager_cpu_limit = 0
-diagnose_manager_cpu_limit = 0
+diagnoses_manager_cpu_limit = 0
+files_manager_cpu_limit = 0
+
+error_treatment_method = 'replace'

@@ -6,8 +6,8 @@ from multiprocessing import Pool
 from db_schema import Diagnose
 import convenience
 import db_session
-
-from typing import List
+from files import FileInfo
+import typing
 
 
 class DiagnoseCollection:
@@ -26,9 +26,9 @@ class DiagnoseCollection:
 
 
 class ThreadedDiagnoseReader:
-    def __init__(self, file_names, thread_number, result_collection):
+    def __init__(self, file_names: typing.List[FileInfo], thread_number, result_collection):
 
-        self.file_names = file_names
+        self.files = file_names
         self.thread_number = thread_number
         self.re_collection = regexps.RegexCollection.get_regex_collection_copy()
         self.result_collection = result_collection
@@ -51,8 +51,8 @@ class ThreadedDiagnoseReader:
         if not is_matched:
             print("No match {}".format(line))
 
-    def process_file(self, file_name):
-        with open(file_name, encoding="utf8", errors='ignore') as log_file:
+    def process_file(self, file_info: FileInfo):
+        with open(file_info.full_path, encoding="utf8", errors=config.error_treatment_method) as log_file:
             count = 0
             # print(count)
             for line in log_file:
@@ -60,10 +60,11 @@ class ThreadedDiagnoseReader:
                 if config.only_read_limited_number_of_lines and count == config.limited_number_of_lines_count:
                     break
                 if count % config.print_count == 0:
-                    Logger.log("[Thread %d] Processed %d lines from file %s" % (self.thread_number, count, file_name))
+                    Logger.log("[Thread %d] Processed %d/%d lines from file %s" % (
+                        self.thread_number, count, file_info.line_count, file_info.full_path))
 
                 # Skip lines with base load and etc
-                if ("\\virus\\samples\\" not in line):
+                if LineParser.should_skip_line(line):
                     continue
                 try:
                     self.parse_diagnose(line, self.re_collection)
@@ -72,18 +73,17 @@ class ThreadedDiagnoseReader:
                     continue
 
     def run(self):
-        for file_name in self.file_names:
-            self.process_file(file_name)
+        for file in self.files:
+            self.process_file(file)
 
 
 class DiagnoseReaderWorkerParam:
-    def __init__(self, file_collection, thread_number):
+    def __init__(self, file_collection: typing.List[FileInfo], thread_number):
         self.thread_number = thread_number
         self.file_collection = file_collection
 
 
 def diagnose_reader_worker(worker_param: DiagnoseReaderWorkerParam):
-
     Logger.log("diagnose_reader_worker(): thread %d started" % worker_param.thread_number)
 
     collection = DiagnoseCollection()
@@ -106,13 +106,12 @@ class DiagnoseWriterWorkerItem:
 
 
 class DiagnoseWriterWorkerParam:
-    def __init__(self, thread_id: int, diagnoses: List[DiagnoseWriterWorkerItem]):
+    def __init__(self, thread_id: int, diagnoses: typing.List[DiagnoseWriterWorkerItem]):
         self.diagnoses = diagnoses
         self.thread_id = thread_id
 
 
 def diagnose_writer_worker(param: DiagnoseWriterWorkerParam):
-
     Logger.log("diagnose_writer_worker(): thread %d started" % param.thread_id)
     engine = db_session.DatabaseEngine()
     session = engine.get_session()
@@ -147,11 +146,11 @@ def diagnose_writer_worker(param: DiagnoseWriterWorkerParam):
 
 
 class DiagnoseManager:
-    def __init__(self, file_collection: List[str]):
+    def __init__(self, file_collection: typing.List[FileInfo]):
         self.file_collection = file_collection
         self.thread_limit = convenience.get_cpu_count()
-        if config.diagnose_manager_cpu_limit > 0:
-            self.thread_limit = min(self.thread_limit, config.diagnose_manager_cpu_limit)
+        if config.diagnoses_manager_cpu_limit > 0:
+            self.thread_limit = min(self.thread_limit, config.diagnoses_manager_cpu_limit)
         self.diagnose_collection = None
 
     def clear_diagnose_collection(self):
@@ -221,9 +220,10 @@ class DiagnoseManager:
 
         Logger.log("DiagnoseManager.create_diagnoses_in_database_threaded(): threads finished")
 
+    def create_diagnoses_in_database(self):
 
-    def create_diagnoses_in_database(self, session):
-
+        engine = db_session.DatabaseEngine()
+        session = engine.get_session()
         parameters_array = []
         i = 0
         total_count = 0
@@ -246,3 +246,5 @@ class DiagnoseManager:
             session.bulk_insert_mappings(Diagnose, parameters_array)
             session.commit()
             Logger.log("create_diagnoses_in_database(): inserted %d entries" % total_count)
+
+        engine.close_session(session)

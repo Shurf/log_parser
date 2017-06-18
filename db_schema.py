@@ -8,16 +8,16 @@ Base = declarative_base()
 
 assotiation_table_file_diagnose = Table('assotiation_file_diagnose',
                                         Base.metadata,
-                                        Column('file_id', Integer, ForeignKey('file.id')),
-                                        Column('diagnose_id', Integer, ForeignKey('diagnose.id'))
+                                        Column('entry_id', Integer, ForeignKey('log_entries.id')),
+                                        Column('diagnose_id', Integer, ForeignKey('diagnoses.id'))
                                         )
 
 
 class EngineVersion(Base):
-    __tablename__ = 'engine_version'
+    __tablename__ = 'engine_versions'
     id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
     version = Column(String(16))
-    files_scanned = relationship("File")
+    log_files = relationship("LogFile")
 
     def __init__(self, version):
         self.version = version
@@ -27,34 +27,36 @@ class EngineVersion(Base):
         return "<Core Engine Version: {}>".format(self.version)
 
 
-class FullLine(Base):
-    __tablename__ = 'full_line'
+class LogFile(Base):
+    __tablename__ = 'log_files'
     id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
-    text = Column(String(2048))
-    file_id = Column(Integer, ForeignKey('file.id'))
+    name = Column(String(1024))
+    full_path = Column(String(1024))
+    line_count = Column(Integer)
+    engine_version = Column(Integer, ForeignKey('engine_versions.id'))
 
-    def __init__(self, text):
-        self.text = text
+    def __init__(self, name, full_path, line_count, engine_version):
+        self.name = name
+        self.full_path = full_path
+        self.line_count = line_count
+        self.engine_version = engine_version
 
-    def __repr__(self):
-        return "{}".format(self.text)
 
-
-class File(Base):
-    __tablename__ = 'file'
+class LogEntry(Base):
+    __tablename__ = 'log_entries'
     id = Column(Integer, primary_key=True, autoincrement=True)
     file_path = Column(String(20000))
     # scanned_by_version = Column(Integer, ForeignKey('engine_version.id'))
-    engine_version = Column(Integer, ForeignKey('engine_version.id'))
+    log_file = Column(Integer, ForeignKey('log_files.id'))
     diagnose = relationship("Diagnose",
                             secondary=assotiation_table_file_diagnose,
                             backref=backref("file", lazy="dynamic"))
 
-    def __init__(self, file_path, engine_version):
+    def __init__(self, file_path, log_file):
         self.file_path = file_path
         self.full_line = []
         self.diagnose = []
-        self.engine_version = engine_version
+        self.log_file = log_file
 
     def __repr__(self):
         return "<File path: {}, Scanned by {}, diagnoses: {}>".format(self.file_path,
@@ -63,7 +65,7 @@ class File(Base):
 
 
 class Diagnose(Base):
-    __tablename__ = 'diagnose'
+    __tablename__ = 'diagnoses'
     id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
     dia_type = Column(String(64))
     subtype = Column(String(64), default=None)
