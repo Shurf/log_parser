@@ -14,8 +14,11 @@ class DatabaseEngine:
         return self.database_engine
 
     def recreate_database(self):
-        self.get_engine().execute("DROP DATABASE scan_logs")
-        self.get_engine().execute("CREATE DATABASE IF NOT EXISTS scan_logs")
+        try:
+            self.get_engine().execute("DROP DATABASE scan_logs")
+        except:
+            pass
+        self.get_engine().execute("CREATE DATABASE scan_logs COLLATE = 'utf8_bin' CHARACTER SET = 'utf8'")
 
     def initialize_engine(self):
         self.get_engine().execute("USE scan_logs")

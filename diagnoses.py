@@ -2,7 +2,7 @@ import regexps
 import config
 from line_parser import LineParser
 from logger import Logger
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool
 from db_schema import Diagnose
 import convenience
 import db_session
@@ -149,7 +149,9 @@ def diagnose_writer_worker(param: DiagnoseWriterWorkerParam):
 class DiagnoseManager:
     def __init__(self, file_collection: List[str]):
         self.file_collection = file_collection
-        self.thread_limit = cpu_count()
+        self.thread_limit = convenience.get_cpu_count()
+        if config.diagnose_manager_cpu_limit > 0:
+            self.thread_limit = min(self.thread_limit, config.diagnose_manager_cpu_limit)
         self.diagnose_collection = None
 
     def clear_diagnose_collection(self):
@@ -176,6 +178,7 @@ class DiagnoseManager:
 
         Logger.log("DiagnoseManager.read_diagnoses_from_files(): starting threads")
         results = pool.map(diagnose_reader_worker, args_collection)
+        pool.close()
 
         Logger.log("DiagnoseManager.read_diagnoses_from_files(): threads completed reading files")
         self.join_returnable_results(results)
@@ -214,6 +217,7 @@ class DiagnoseManager:
         Logger.log("DiagnoseManager.create_diagnoses_in_database_threaded(): running threads")
 
         pool.map(diagnose_writer_worker, args_collection)
+        pool.close()
 
         Logger.log("DiagnoseManager.create_diagnoses_in_database_threaded(): threads finished")
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, Unicode
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import backref
 from sqlalchemy.ext.declarative import declarative_base
@@ -43,8 +43,7 @@ class FullLine(Base):
 class File(Base):
     __tablename__ = 'file'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    file_path = Column(String(2048))
-    full_line = relationship("FullLine")
+    file_path = Column(String(20000))
     # scanned_by_version = Column(Integer, ForeignKey('engine_version.id'))
     engine_version = Column(Integer, ForeignKey('engine_version.id'))
     diagnose = relationship("Diagnose",
