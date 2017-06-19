@@ -20,3 +20,5 @@ diagnoses_manager_cpu_limit = 0
 files_manager_cpu_limit = 0
 
 error_treatment_method = 'replace'
+
+db_schema_name = 'scan_logs'

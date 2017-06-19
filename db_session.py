@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from db_schema import Base
+import config
 
 class DatabaseEngine:
     def __init__(self):
@@ -15,13 +16,13 @@ class DatabaseEngine:
 
     def recreate_database(self):
         try:
-            self.get_engine().execute("DROP DATABASE scan_logs1")
+            self.get_engine().execute("DROP DATABASE %s" % config.db_schema_name)
         except:
             pass
-        self.get_engine().execute("CREATE DATABASE scan_logs1 COLLATE = 'utf8_bin' CHARACTER SET = 'utf8'")
+        self.get_engine().execute("CREATE DATABASE %s COLLATE = 'utf8_bin' CHARACTER SET = 'utf8'" % config.db_schema_name)
 
     def initialize_engine(self):
-        self.get_engine().execute("USE scan_logs1")
+        self.get_engine().execute("USE %s" % config.db_schema_name)
 
     def create_tables(self):
         self.initialize_engine()
