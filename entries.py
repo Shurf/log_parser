@@ -35,7 +35,7 @@ class EntryContainer:
         return len(self.entries_collection) > 0
 
     def pop_entry(self) -> DatabaseEntry:
-        (file_path, diagnose_ids) = self.entries_collection.popitem()
+        (file_path, diagnose_ids) = self.entries_collection.popitem(last=False)
         return DatabaseEntry(file_path=file_path, diagnose_id_list=list(diagnose_ids))
 
 
