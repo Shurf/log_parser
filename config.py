@@ -7,7 +7,7 @@ print_count = 500000
 
 bulk_insert_length = 100000
 
-ordered_dict_max_length = 1000
+ordered_dict_max_length = 50000
 
 entry_id_multiplier = 100000000
 
