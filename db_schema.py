@@ -12,6 +12,27 @@ assotiation_table_file_diagnose = Table('assotiation_file_diagnose',
                                         Column('diagnose_id', Integer, ForeignKey('diagnoses.id'))
                                         )
 
+class GrouppedEntry(Base):
+    __tablename__ = 'groupped_entries'
+    id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
+    file_path = Column(String(20000))
+    cnt = Column(Integer)
+
+class SingleFile(Base):
+    __tablename__ = 'single_files'
+    id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
+    file_path = Column(String(20000))
+    engine_version_id = Column(Integer, ForeignKey('engine_versions.id'))
+
+class Difference(Base):
+    __tablename__ = 'differences'
+    id = Column(Integer, primary_key=True, unique=True, autoincrement=True)
+    entry_id1 = Column(Integer, ForeignKey('log_entries.id'))
+    engine_id1 = Column(Integer, ForeignKey('engine_versions.id'))
+    entry_id2 = Column(Integer, ForeignKey('log_entries.id'))
+    engine_id2 = Column(Integer, ForeignKey('engine_versions.id'))
+
+
 
 class EngineVersion(Base):
     __tablename__ = 'engine_versions'

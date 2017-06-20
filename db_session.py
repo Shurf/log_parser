@@ -19,7 +19,7 @@ class DatabaseEngine:
             self.get_engine().execute("DROP DATABASE %s" % config.db_schema_name)
         except:
             pass
-        self.get_engine().execute("CREATE DATABASE %s COLLATE = 'utf8_bin' CHARACTER SET = 'utf8'" % config.db_schema_name)
+        self.get_engine().execute("CREATE DATABASE %s DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_bin" % config.db_schema_name)
 
     def initialize_engine(self):
         self.get_engine().execute("USE %s" % config.db_schema_name)
@@ -30,7 +30,7 @@ class DatabaseEngine:
 
     def get_session(self):
         self.initialize_engine()
-        session = sessionmaker(bind=self.get_engine())()
+        session = sessionmaker(bind=self.get_engine(), autoflush=True)()
         session.execute("SET NAMES utf8")
         session.execute("SET CHARACTER SET utf8")
         session.execute("SET character_set_connection=utf8")
