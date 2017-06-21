@@ -36,7 +36,7 @@ class BaseRegWrapper(object):
 class OkReg(BaseRegWrapper):
     def __init__(self):
         super(OkReg, self).__init__('\-\ Ok\s*$', is_final=True)
-        self.diagnose = 'clear'
+        self.diagnose = 'Ok'
 
 
 class IncurableReg(BaseRegWrapper):
@@ -109,7 +109,7 @@ class InfectedReg(BaseRegWrapper):
 class InfectedWithReg(BaseRegWrapper):
     def __init__(self):
         super(InfectedWithReg, self).__init__(' infected with (.+)$', is_final=True)
-        self.diagnose = 'infected'
+        self.diagnose = 'infected with'
 
 
 class MalwareProgrammReg(BaseRegWrapper):
@@ -119,7 +119,7 @@ class MalwareProgrammReg(BaseRegWrapper):
 
     def __init__(self):
         super(MalwareProgrammReg, self).__init__(' is .+ program (.+)$', is_final=True)
-        self.diagnose = 'malware'
+        self.diagnose = 'program'
 
 
 """class PackedByReg(BaseRegWrapper):
