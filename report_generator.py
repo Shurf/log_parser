@@ -1,45 +1,12 @@
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+import difference_parser
 
-from db_schema import Base, EngineVersion, LogEntry, Diagnose
-
-
-def main(session):
-    old_engine, new_engine = session.query(EngineVersion).all()
-
-    if old_engine.version > new_engine.version:
-        tmp = new_engine
-        new_engine = old_engine
-        old_engine = tmp
-
-    for new_sample_file in session.query(LogEntry).filter_by(engine_version=new_engine.id):
-        old_sample_file = session.query(LogEntry).filter_by(engine_version=old_engine.id,
-                                                          file_path=new_sample_file.file_path).first()
-        if old_sample_file:
-            if old_sample_file.diagnose != new_sample_file.diagnose:
-                message = "Core Version: {} \n Scan Log: {} \n Core Version: {} \nScan Log: {} \n \n".format(old_engine.version,
-                                                                                                             old_sample_file.full_line,
-                                                                                                             new_engine.version,
-                                                                                                             new_sample_file.full_line
-                                                                                                             )
-                print(message)
-
-        else:
-            print("Sample scanned only in new version" + new_sample_file)
+def main():
+    parser = difference_parser.DifferenceParser('7.00.27.02270')
+    parser.fill_structures()
+    parser.print_results()
 
 
 
 
 if __name__ == '__main__':
-    echo = False
-
-    #for python 3.6 on windows we need to install mysqlclient package
-    engine = create_engine('mysql://root:root@localhost/', echo=echo)
-    engine.execute("USE scan_logs")
-    Base.metadata.create_all(engine)
-
-    session = sessionmaker(bind=engine)()
-
-    main(session)
-
-    session.close()
+    main()
