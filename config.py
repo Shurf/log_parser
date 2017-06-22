@@ -1,7 +1,7 @@
 __author__ = 'schrecknetuser'
 
 minimize_memory_usage = False
-only_read_limited_number_of_lines = True
+only_read_limited_number_of_lines = False
 limited_number_of_lines_count = 1000
 print_count = 500000
 
