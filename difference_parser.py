@@ -3,6 +3,8 @@ __author__ = 'schrecknetuser'
 import db_session
 from db_schema import EngineVersion, Difference, LogEntry
 from logger import Logger
+import typing
+import regexps
 
 
 class DiagnoseInfo:
@@ -31,6 +33,8 @@ class DifferenceParser:
         self.different_files = {}
         self.sorted_engine_ids = []
         self.sorted_engine_versions = []
+        self.full_output_name = "output-full.html"
+        self.minimized_output_name = "output-minimized.html"
 
     def fill_structures(self):
         session = self.engine.get_session()
@@ -57,6 +61,7 @@ class DifferenceParser:
             second_engine_entry = session.query(LogEntry).filter(LogEntry.id == difference.entry_id2).first()
 
             if first_engine_entry.file_path in self.different_files.keys():
+                i += 1
                 continue
             self.different_files[first_engine_entry.file_path] = {}
 
@@ -80,16 +85,16 @@ class DifferenceParser:
 
         self.engine.close_session(session)
 
-    def print_results(self):
+    def print_results_full(self):
 
-        f = open("output.html", "w", encoding='utf-8')
+        f = open(self.full_output_name, "w", encoding='utf-8')
         f.write("<html><body>\n")
-        f.write("<table>\n")
+        f.write("<table border=1>\n")
         f.write("<tr>\n")
-        f.write("<th>Filename</th>\n")
         f.write("<th>Diagnoses unique for engine %s</th>\n" % self.sorted_engine_versions[0])
         f.write("<th>Diagnoses unique for engine %s</th>\n" % self.sorted_engine_versions[1])
         f.write("<th>Common diagnoses</th>\n")
+        f.write("<th>Filename</th>\n")
         f.write("</tr>\n")
 
         for file_name in self.different_files.keys():
@@ -118,8 +123,79 @@ class DifferenceParser:
 
             f.write("<tr>\n")
             f.write("<td>")
+            f.write("<br />".join(
+                "[%s]&nbsp%s" % (f.diagnose_info, f.diagnose_subtype) for f in unique_first_version_diagnoses))
+            f.write("</td>\n")
+            f.write("<td>")
+            f.write("<br />".join(
+                "[%s]&nbsp%s" % (f.diagnose_info, f.diagnose_subtype) for f in unique_second_version_diagnoses))
+            f.write("</td>\n")
+            f.write("<td>")
+            f.write("<br />".join(
+                "[%s]&nbsp%s" % (f.diagnose_info, f.diagnose_subtype) for f in common_diagnoses))
+            f.write("</td>\n")
+            f.write("<td>")
             f.write(file_name)
             f.write("</td>\n")
+            f.write("</tr>\n")
+
+        f.write("</table>\n")
+        f.write("</body></html>")
+        f.close()
+
+    def diagnose_collection_has_positives(self, collection: typing.List[DiagnoseInfo]):
+        for element in collection:
+            if element.diagnose_info in regexps.DiagnoseTypes.positive_diagnoses():
+                return True
+        return False
+
+    def positives_differ_in_collections(self, collection1: typing.List[DiagnoseInfo], collection2: typing.List[DiagnoseInfo]):
+        if self.diagnose_collection_has_positives(collection1) and not self.diagnose_collection_has_positives(collection2):
+            return True
+        if self.diagnose_collection_has_positives(collection2) and not self.diagnose_collection_has_positives(collection1):
+            return True
+        return False
+
+    def print_results_minimized(self):
+
+        f = open(self.minimized_output_name, "w", encoding='utf-8')
+        f.write("<html><body>\n")
+        f.write("<table border=1>\n")
+        f.write("<tr>\n")
+        f.write("<th>Diagnoses unique for engine %s</th>\n" % self.sorted_engine_versions[0])
+        f.write("<th>Diagnoses unique for engine %s</th>\n" % self.sorted_engine_versions[1])
+        f.write("<th>Common diagnoses</th>\n")
+        f.write("<th>Filename</th>\n")
+        f.write("</tr>\n")
+
+        for file_name in self.different_files.keys():
+
+            first_version_diagnoses = self.different_files[file_name][self.sorted_engine_ids[0]]
+            second_version_diagnoses = self.different_files[file_name][self.sorted_engine_ids[1]]
+
+            if not self.positives_differ_in_collections(first_version_diagnoses, second_version_diagnoses):
+                continue
+
+            common_diagnoses = []
+
+            unique_first_version_diagnoses = []
+            unique_second_version_diagnoses = []
+
+            for first_version_diagnose in first_version_diagnoses:
+                if first_version_diagnose in second_version_diagnoses:
+                    if first_version_diagnose not in common_diagnoses:
+                        common_diagnoses.append(first_version_diagnose)
+                    continue
+                unique_first_version_diagnoses.append(first_version_diagnose)
+
+            for second_version_diagnose in second_version_diagnoses:
+                if second_version_diagnose in first_version_diagnoses:
+                    if second_version_diagnose not in common_diagnoses:
+                        common_diagnoses.append(second_version_diagnose)
+                    continue
+                unique_second_version_diagnoses.append(second_version_diagnose)
+
+            f.write("<tr>\n")
             f.write("<td>")
             f.write("<br />".join(
                 "[%s]&nbsp%s" % (f.diagnose_info, f.diagnose_subtype) for f in unique_first_version_diagnoses))
@@ -132,9 +208,13 @@ class DifferenceParser:
             f.write("<br />".join(
                 "[%s]&nbsp%s" % (f.diagnose_info, f.diagnose_subtype) for f in common_diagnoses))
             f.write("</td>\n")
+            f.write("<td>")
+            f.write(file_name)
+            f.write("</td>\n")
             f.write("</tr>\n")
 
         f.write("</table>\n")
         f.write("</body></html>")
         f.close()
+
 
